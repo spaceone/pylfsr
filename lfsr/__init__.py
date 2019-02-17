@@ -155,6 +155,10 @@ def measure_period(cntr):
 class LFSR(object):
 
     @property
+    def algorithm(self):
+        raise NotImplementedError('Use any of the subclasses')
+
+    @property
     def taps(self):
         return self.poly_to_taps(self.poly)
 
@@ -222,7 +226,7 @@ class LFSR(object):
 class Galois(LFSR):
     @property
     def algorithm(self):
-        def _fixed(poly, seed):
+        def _fixed(poly, seed):  # AFAIK: galois must not yield the initial state, fix the broken implementation of lfsr_if()
             s = lfsr_if(poly, seed)
             assert next(s) == seed
             while True:
