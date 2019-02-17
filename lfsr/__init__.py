@@ -159,9 +159,13 @@ class LFSR(object):
         return self.poly_to_taps(self.poly)
 
     def __init__(self, taps, seed):
-        self.__iter = None
         if not isinstance(taps, int):
             taps = self.taps_to_poly(taps)
+        if isinstance(seed, (str, bytes, type(u''))):
+            seed = _string_to_binarray(seed)
+        if not isinstance(seed, int):
+            seed = _binarray_to_int(seed)
+        self.__iter = None
         self.poly = taps
         self.seed = seed
         self.key_length = max(self.taps)
@@ -311,9 +315,18 @@ def _binarray_to_string(data):
 
 
 def _binarray_to_bytes(data):
+    assert not len(data) % 8
     while data:
         x, data = data[:8], data[8:]
-        yield int(''.join(map(str, x)), 2)
+        yield _binarray_to_int(x)
+
+
+def _binarray_to_int(data):
+    """Create integer from binary array
+    >>> _binarray_to_int(_string_to_binarray('test'))
+    1952805748
+    """
+    return int(''.join(map(str, data)), 2)
 
 
 def _string_to_binarray(data):
