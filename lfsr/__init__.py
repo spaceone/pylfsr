@@ -252,26 +252,14 @@ class BerlekampMasseyAlgorithm(object):
 
     def __init__(self, data_sequence):
         if isinstance(data_sequence, (str, bytes, type(u''))):
-            data_sequence = self.binarify(data_sequence)
+            data_sequence = _string_to_binarray(data_sequence)
         self.data_sequence = data_sequence
         self.bit_length, coefficients = self.berlekamp_massey_algorithm(data_sequence)
         self.taps = self.get_taps(coefficients)
 
     @property
     def data(self):
-        return self.binarray_to_string(self.data_sequence)
-
-    def binarray_to_string(self, data):
-        return ''.join(map(chr, self.binarray_to_bytes(data)))
-
-    def binarray_to_bytes(self, data):
-        while data:
-            x, data = data[:8], data[8:]
-            yield int(''.join(map(str, x)), 2)
-
-    def binarify(self, data):
-        bindata = ''.join(bin(ord(x))[2:].zfill(8) for x in data)
-        return [0 if x == '0' else 1 for x in bindata]
+        return _binarray_to_string(self.data_sequence)
 
     def get_taps(self, coefficients):
         return [max(0, t) for t, v in enumerate(coefficients) if v == 1]
@@ -312,3 +300,26 @@ class BerlekampMasseyAlgorithm(object):
                     b = temp
             i += 1
         return ll, c
+
+
+def _binarray_to_string(data):
+    """Create a string from a binary array
+    >>> _binarray_to_string([0, 1, 1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 0])
+    'test'
+    """
+    return ''.join(map(chr, _binarray_to_bytes(data)))
+
+
+def _binarray_to_bytes(data):
+    while data:
+        x, data = data[:8], data[8:]
+        yield int(''.join(map(str, x)), 2)
+
+
+def _string_to_binarray(data):
+    """Create a binary array out of a string.
+    >>> _string_to_binarray('test')
+    [0, 1, 1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 0]
+    """
+    bindata = ''.join(bin(ord(x))[2:].zfill(8) for x in data)
+    return [0 if x == '0' else 1 for x in bindata]
