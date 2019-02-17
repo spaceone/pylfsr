@@ -177,6 +177,7 @@ class LFSR(object):
         self.key_length = max(self.taps)
         self.state = seed
         self.lfsr = self.algorithm(self.poly, self.seed)
+        assert self.seed != 0
 
     def poly_to_taps(self, poly):
         return list(reversed([i for i, x in enumerate(reversed(bin(poly)[2:])) if x == '1']))
@@ -215,7 +216,7 @@ class LFSR(object):
 
     def __call__(self):
         while True:
-            data = next(self.lfsr)
+            self.state = data = next(self.lfsr)
             for x in bin(data)[2:].zfill(self.key_length):
                 yield int(x)
 
