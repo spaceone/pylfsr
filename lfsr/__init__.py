@@ -7,7 +7,9 @@ https://www.xilinx.com/support/documentation/application_notes/xapp210.pdf
 https://users.ece.cmu.edu/~koopman/lfsr/
 https://en.wikipedia.org/wiki/Linear-feedback_shift_register
 """
+from __future__ import print_function
 import copy
+import string
 import itertools
 import numpy
 
@@ -163,11 +165,11 @@ class LFSR(object):
         return self.poly_to_taps(self.poly)
 
     def __init__(self, taps, seed):
-        if not isinstance(taps, int):
+        if not isinstance(taps, (int, long)):
             taps = self.taps_to_poly(taps)
         if isinstance(seed, (str, bytes, type(u''))):
             seed = _string_to_binarray(seed)
-        if not isinstance(seed, int):
+        if not isinstance(seed, (int, long)):
             seed = _binarray_to_int(seed)
         self.__iter = None
         self.poly = taps
@@ -199,6 +201,17 @@ class LFSR(object):
 
     def getbit(self):
         return next(self)
+
+    def encrypt(self, plaintext):
+        """Encrypt a message using XOR One Time Pad"""
+        lfsr = self.get_restarted()
+        ciphertext = ''
+        for char in plaintext:
+            ciphertext += chr(ord(char) ^ lfsr.getbyte())
+        return ciphertext
+
+    def decrypt(self, ciphertext):
+        return self.encrypt(ciphertext)
 
     def __call__(self):
         while True:
@@ -280,6 +293,7 @@ class BerlekampMasseyAlgorithm(object):
         self.data_sequence = data_sequence
         self.bit_length, coefficients = self.berlekamp_massey_algorithm(data_sequence)
         self.taps = self.get_taps(coefficients)
+        self.key_length = max(self.taps)
 
     @property
     def data(self):
@@ -326,20 +340,71 @@ class BerlekampMasseyAlgorithm(object):
         return ll, c
 
 
-class StreamCipher(object):
+class KnownPlaintextAttack(object):
+    """Perform a known plaintext attack against a LFSR using berlekamp massey algorithm and some guessed plaintext chunks"""
 
-    def __init__(self, lfsr):
-        self.lfsr = lfsr
+    forbidden_plaintext_chars = set(map(chr, range(256))) - set(string.printable)
 
-    def encrypt(self, plaintext):
-        lfsr = self.lfsr.get_restarted()
-        ciphertext = ''
-        for char in plaintext:
-            ciphertext += chr(ord(char) ^ lfsr.getbyte())
-        return ciphertext
+    def __init__(self, ciphertext, known_plaintexts=None, known_bit_length=None):
+        self.ciphertext = ciphertext
+        self.known_plaintexts = known_plaintexts or []
+        self.known_bit_length = known_bit_length
 
-    def decrypt(self, ciphertext):
-        return self.encrypt(ciphertext)
+    def crack(self):
+        print()
+        print('Trying to crack', self.ciphertext.encode('base64'))
+        print()
+
+        for word in self.get_plaintexts():
+            print('Bruteforce using', word, len(word))
+            for pos in self.get_positions(word):
+                chunk = self.ciphertext[pos:pos + len(word)]
+                state = self.xorword(chunk, word)
+                bma = BerlekampMasseyAlgorithm(state)
+                if not self.bma_suitable(bma):
+                    print('ignored')
+                    continue
+
+                state = state[:int(bma.key_length / 8.0)]
+
+                # for tap_ in (bma.taps, [max(0, x - 1) for x in bma.taps]):
+                for LFSR in (Fibonacci, Galois, BrokenGalois):
+                    lfsr = LFSR(bma.taps, state)
+                    decrypted = lfsr.decrypt(self.ciphertext[pos:])
+
+                    if not set(decrypted) & self.forbidden_plaintext_chars:
+                        print('Found possible match: %r' % (decrypted,))
+                        print(repr(lfsr))
+                        print(repr(bma))
+                        print()
+
+    def bma_suitable(self, bma):
+        print(repr(bma))
+        if 0 not in bma.taps:  # polynomal must contain "+ x^0"
+            return False
+        if len(bma.taps) % 2:  # taps must be even!
+            return False
+        if self.known_bit_length and bma.bit_length != self.known_bit_length:
+            return False
+        return True
+
+    def xorword(self, a, b):
+        return _binarray_to_string(self.xor(_string_to_binarray(a), _string_to_binarray(b)))
+
+    def xor(self, a, b):
+        # assert len(a) == len(b), (len(a), len(b))
+        return [b1 ^ b2 for b1, b2 in zip(a, b)]
+
+    def get_plaintexts(self):
+        for word in self.known_plaintexts:
+            if self.known_bit_length and len(word) < (2 * self.known_bit_length / 8.0):
+                print('Word %r too small! Ignoring.' % (word,))
+                continue
+            yield word
+
+    def get_positions(self, word):
+        for _ in range(len(self.ciphertext) - len(word)):
+            yield _
 
 
 def _binarray_to_string(data, ignore_padding=False):
