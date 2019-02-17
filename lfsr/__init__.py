@@ -220,7 +220,7 @@ class LFSR(object):
     next = __next__
 
     def __repr__(self):
-        return '<%s(seed=0x%X (%dbit), polynomial=0x%X, state=0x%X)>' % (type(self).__name__, self.key_length, self.seed, self.poly, self.state)
+        return '<%s(seed=0x%X (%dbit), polynomial=0x%X, state=0x%X)>' % (type(self).__name__, self.seed, self.key_length, self.poly, self.state)
 
 
 class Galois(LFSR):
@@ -234,13 +234,45 @@ class Galois(LFSR):
         return _fixed
 
 
+class BrokenGalois(LFSR):
+    @property
+    def algorithm(self):
+        return lfsr_if
+
+
 class Fibonacci(LFSR):
+    """
+    >>> x = Fibonacci([3, 2, 1, 0], 1)
+    >>> x
+    <Fibonacci(seed=0x1 (3bit), polynomial=0xF, state=0x1)>
+    >>> x.getbits(8)
+    [0, 0, 1, 1, 0, 0, 1, 1]
+    >>> x.getbits(8)
+    [0, 1, 1, 0, 0, 1, 1, 0]
+    >>> x.getbits(8)
+    [1, 1, 0, 0, 1, 1, 0, 0]
+    >>> x.getbits(8)
+    [1, 0, 0, 1, 1, 0, 0, 1]
+    >>> x.getbits(8)
+    [0, 0, 1, 1, 0, 0, 1, 1]
+    >>> x.getbits(8)
+    [0, 1, 1, 0, 0, 1, 1, 0]
+    >>> x.getbits(8)
+    [1, 1, 0, 0, 1, 1, 0, 0]
+    >>> x.getbits(8)
+    [1, 0, 0, 1, 1, 0, 0, 1]
+    """
     @property
     def algorithm(self):
         return lfsr_ef
 
 
 class BerlekampMasseyAlgorithm(object):
+    """Calculates the shortest LFSR. Given any sequence of bytes or binary array.
+
+    >>> BerlekampMasseyAlgorithm(Fibonacci([3, 2, 1, 0], 1).getbits(80))
+    BMA(3bit, taps=[3, 2, 1, 0]) for data='3333333333'
+    """
 
     def __init__(self, data_sequence):
         if isinstance(data_sequence, (str, bytes, type(u''))):
@@ -251,10 +283,10 @@ class BerlekampMasseyAlgorithm(object):
 
     @property
     def data(self):
-        return _binarray_to_string(self.data_sequence)
+        return _binarray_to_string(self.data_sequence, True)
 
     def get_taps(self, coefficients):
-        return [max(0, t) for t, v in enumerate(coefficients) if v == 1]
+        return list(reversed([max(0, t) for t, v in enumerate(coefficients) if v == 1]))
 
     def __repr__(self):
         return 'BMA(%dbit, taps=%r) for data=%r' % (self.bit_length, self.taps, self.data)
@@ -310,16 +342,17 @@ class StreamCipher(object):
         return self.encrypt(ciphertext)
 
 
-def _binarray_to_string(data):
+def _binarray_to_string(data, ignore_padding=False):
     """Create a string from a binary array
     >>> _binarray_to_string([0, 1, 1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 0])
     'test'
     """
-    return ''.join(map(chr, _binarray_to_bytes(data)))
+    return ''.join(map(chr, _binarray_to_bytes(data, ignore_padding)))
 
 
-def _binarray_to_bytes(data):
-    assert not len(data) % 8
+def _binarray_to_bytes(data, ignore_padding=False):
+    if not ignore_padding:
+        assert not len(data) % 8
     while data:
         x, data = data[:8], data[8:]
         yield _binarray_to_int(x)
