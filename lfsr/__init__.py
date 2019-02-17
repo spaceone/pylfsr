@@ -194,6 +194,9 @@ class LFSR(object):
     def getchar(self):
         return chr(self.getbyte())
 
+    def getnext(self):
+        return int(''.join(map(str, self.getbits(self.key_length))), 2)
+
     def getbyte(self):
         return int(''.join(map(str, self.getbits(8))), 2)
 
