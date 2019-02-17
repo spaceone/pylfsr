@@ -232,22 +232,6 @@ class Fibonacci(LFSR):
         return lfsr_ef
 
 
-class StreamCipher(object):
-
-    def __init__(self, lfsr):
-        self.lfsr = lfsr
-
-    def encrypt(self, plaintext):
-        lfsr = self.lfsr.get_restarted()
-        ciphertext = ''
-        for char in plaintext:
-            ciphertext += chr(ord(char) ^ lfsr.getbyte())
-        return ciphertext
-
-    def decrypt(self, ciphertext):
-        return self.encrypt(ciphertext)
-
-
 class BerlekampMasseyAlgorithm(object):
 
     def __init__(self, data_sequence):
@@ -300,6 +284,22 @@ class BerlekampMasseyAlgorithm(object):
                     b = temp
             i += 1
         return ll, c
+
+
+class StreamCipher(object):
+
+    def __init__(self, lfsr):
+        self.lfsr = lfsr
+
+    def encrypt(self, plaintext):
+        lfsr = self.lfsr.get_restarted()
+        ciphertext = ''
+        for char in plaintext:
+            ciphertext += chr(ord(char) ^ lfsr.getbyte())
+        return ciphertext
+
+    def decrypt(self, ciphertext):
+        return self.encrypt(ciphertext)
 
 
 def _binarray_to_string(data):
