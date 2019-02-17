@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Linear Feedback Shift Register toolkit.
 
 References:
@@ -6,7 +7,9 @@ https://www.xilinx.com/support/documentation/application_notes/xapp210.pdf
 https://users.ece.cmu.edu/~koopman/lfsr/
 https://en.wikipedia.org/wiki/Linear-feedback_shift_register
 """
+import copy
 import itertools
+import numpy
 
 
 def lfsr_if(poly, init=1):
@@ -171,8 +174,11 @@ class LFSR(object):
     def taps_to_poly(self, taps):
         return taps_to_poly(taps)
 
+    def get_restarted(self):
+        return type(self)(self.poly, self.seed)
+
     def get_period(self):
-        return measure_period(type(self)(self.poly, self.seed).lfsr)
+        return measure_period(self.get_restarted().lfsr)
 
     def getchar(self):
         return chr(self.getbyte())
@@ -224,3 +230,85 @@ class Fibonacci(LFSR):
     @property
     def algorithm(self):
         return lfsr_ef
+
+
+class StreamCipher(object):
+
+    def __init__(self, lfsr):
+        self.lfsr = lfsr
+
+    def encrypt(self, plaintext):
+        lfsr = self.lfsr.get_restarted()
+        ciphertext = ''
+        for char in plaintext:
+            ciphertext += chr(ord(char) ^ lfsr.getbyte())
+        return ciphertext
+
+    def decrypt(self, ciphertext):
+        return self.encrypt(ciphertext)
+
+
+class BerlekampMasseyAlgorithm(object):
+
+    def __init__(self, data_sequence):
+        if isinstance(data_sequence, (str, bytes, type(u''))):
+            data_sequence = self.binarify(data_sequence)
+        self.data_sequence = data_sequence
+        self.bit_length, coefficients = self.berlekamp_massey_algorithm(data_sequence)
+        self.taps = self.get_taps(coefficients)
+
+    @property
+    def data(self):
+        return self.binarray_to_string(self.data_sequence)
+
+    def binarray_to_string(self, data):
+        return ''.join(map(chr, self.binarray_to_bytes(data)))
+
+    def binarray_to_bytes(self, data):
+        while data:
+            x, data = data[:8], data[8:]
+            yield int(''.join(map(str, x)), 2)
+
+    def binarify(self, data):
+        bindata = ''.join(bin(ord(x))[2:].zfill(8) for x in data)
+        return [0 if x == '0' else 1 for x in bindata]
+
+    def get_taps(self, coefficients):
+        return [max(0, t) for t, v in enumerate(coefficients) if v == 1]
+
+    def __repr__(self):
+        return 'BMA(%dbit, taps=%r) for data=%r' % (self.bit_length, self.taps, self.data)
+
+    def berlekamp_massey_algorithm(self, block_data):
+        """
+        An implementation of the Berlekamp Massey Algorithm. Taken from Wikipedia [1]
+        [1] - https://en.wikipedia.org/wiki/Berlekamp-Massey_algorithm
+        The Berlekamp–Massey algorithm is an algorithm that will find the shortest linear feedback shift register (LFSR)
+        for a given binary output sequence. The algorithm will also find the minimal polynomial of a linearly recurrent
+        sequence in an arbitrary field. The field requirement means that the Berlekamp–Massey algorithm requires all
+        non-zero elements to have a multiplicative inverse."""
+        n = len(block_data)
+        c = numpy.zeros(n)
+        b = numpy.zeros(n)
+        c[0], b[0] = 1, 1
+        ll, m, i = 0, -1, 0
+        int_data = [int(el) for el in block_data]
+        assert set(int_data) == set([0, 1])
+        while i < n:
+            v = int_data[(i - ll):i]
+            v = v[::-1]
+            cc = c[1:ll + 1]
+            d = (int_data[i] + numpy.dot(v, cc)) % 2
+            if d == 1:
+                temp = copy.copy(c)
+                p = numpy.zeros(n)
+                for j in range(0, ll):
+                    if b[j] == 1:
+                        p[j + i - m] = 1
+                c = (c + p) % 2
+                if ll <= 0.5 * i:
+                    ll = i + 1 - ll
+                    m = i
+                    b = temp
+            i += 1
+        return ll, c
