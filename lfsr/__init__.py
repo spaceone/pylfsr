@@ -123,7 +123,7 @@ def lfsr_ef(poly, init=1):
 def taps_to_poly(taps, append0=True):
     """Converts vector of taps to corresponding polynomial.
 
-    Note that tap #0 defaults to 1, unles `append0` is False
+    Note that tap #0 defaults to 1, unless `append0` is False
 
     Example:
         Vector of taps [4,3,0] correspond to polynomial x**4+x**3+1
@@ -131,6 +131,8 @@ def taps_to_poly(taps, append0=True):
 
     """
     taps = set(list(taps) + [0])
+    if not append0:
+        taps.remove(0)
     return sum([2**x for x in taps])
 
 
